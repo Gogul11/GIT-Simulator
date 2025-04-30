@@ -1,0 +1,16 @@
+digraph GitGraph {
+  rankdir=TB;
+  "004" [label="004\nhi4", shape=ellipse, fontsize=12, style=filled, fillcolor=lightblue];
+  "002" [label="002\nhi2", shape=ellipse, fontsize=12];
+  "003" [label="003\nhi3", shape=ellipse, fontsize=12];
+  "001" [label="001\nhi1", shape=ellipse, fontsize=12];
+  "init" [label="init\nInitialized GIT REPO", shape=ellipse, fontsize=12];
+  "004" -> "003" [dir=back];
+  "002" -> "001" [dir=back];
+  "003" -> "002" [dir=back];
+  "001" -> "init" [dir=back];
+  "branch_moni" [label="moni (HEAD)", shape=note, fontsize=10, color=green];
+  "branch_moni" -> "004" [style=dashed];
+  "branch_main" [label="main", shape=note, fontsize=10, color=green];
+  "branch_main" -> "003" [style=dashed];
+}
