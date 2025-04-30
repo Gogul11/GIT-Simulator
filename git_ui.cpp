@@ -18,11 +18,11 @@ int main()
         .methods(crow::HTTPMethod::POST)
             ([&](const crow::request& req){
                 auto data = crow::json::load(req.body);
-                Commit *res = r.newCommit(data["name"].s(), data["message"].s());
+                Commit *res = r.newCommit(data["message"].s());
                 
                 crow::json::wvalue x;
                 x["commitId"] = res->commitID;
-                x["content"] = res->content;
+                x["message"] = res->message;
 
                 vector<string> parentIds;
                 for (Commit* p : res->parents) {
@@ -37,7 +37,7 @@ int main()
     CROW_ROUTE(app, "/graph")([&](){
         crow::json::wvalue x;
         x["commitId"] = r.head()->commitID;
-        x["content"] = r.head()->content;
+        x["message"] = r.head()->message;
         r.printGraphDOT();
 
         vector<string> parentIds;
@@ -65,6 +65,16 @@ int main()
 
             return x;
             
+        });
+
+    CROW_ROUTE(app, "/merge")
+        .methods(crow::HTTPMethod::POST)
+        ([&](const crow::request& req){
+            auto data = crow::json::load(req.body);
+
+            r.merge(data["branchName1"].s(), data["branchName2"].s());
+
+            return "hello";            
         });
 
     app.port(8080).multithreaded().run();

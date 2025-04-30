@@ -4,16 +4,18 @@
 #include <iostream>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 #include <fstream>
+#include <stack>
 using namespace std;
 
 struct Commit
 {
     string commitID;
-    string content;
+    string message;
     vector<Commit *> parents;
 
-    Commit(string c, string mes, vector<Commit *> p) : commitID(c), content(mes), parents(p) {}
+    Commit(string c, string mes, vector<Commit *> p) : commitID(c), message(mes), parents(p) {}
 };
 
 class GitRepo
@@ -59,14 +61,17 @@ public:
         return branches[currentBranchHead];
     }
 
-    Commit *newCommit(string name, string commitMessage)
+    Commit *newCommit(string commitMessage)
     {
         Commit *parent = head();
         string cId = generateRandomId(10);
-        Commit *nC = new Commit(name, commitMessage, {parent});
-        commits[name] = nC;
+        Commit *nC = new Commit(cId, commitMessage, {parent});
+        while(commits.find(cId) != commits.end()){
+            cId = generateRandomId(10);
+        }
+        commits[cId] = nC;
         branches[currentBranchHead] = nC;
-        currentCommit = name;
+        currentCommit = cId;
 
         return nC;
     }
@@ -86,12 +91,11 @@ public:
     {
         ofstream fout("git.dot");
         fout << "digraph GitGraph {\n";
-        fout << "  rankdir=TB;\n";  // Top to bottom
+        fout << "  rankdir=TB;\n";
     
-        // Commit Nodes
         for (auto &[id, commit] : commits)
         {
-            string label = commit->commitID + "\\n" + commit->content;
+            string label = commit->commitID + "\\n" + commit->message;
             bool isHEAD = (commit == branches[currentBranchHead]);
             fout << "  \"" << commit->commitID << "\" [label=\"" << label << "\""
                  << ", shape=ellipse, fontsize=12"
@@ -99,17 +103,15 @@ public:
                  << "];\n";
         }
     
-        // Parent Links (commit history)
         for (auto &[id, commit] : commits)
         {
             for (Commit* parent : commit->parents)
             {
                 fout << "  \"" << commit->commitID << "\" -> \"" << parent->commitID
-                     << "\" [dir=back];\n"; // Reverse arrow for git-style flow
+                     << "\" [dir=back];\n";
             }
         }
     
-        // Branch pointers
         for (auto& [branchName, commit] : branches)
         {
             string labelNode = "branch_" + branchName;
@@ -123,9 +125,51 @@ public:
         fout << "}\n";
     }
     
+    void merge(const string b1, const string b2){
+        Commit *p1 = branches[b1];
+        Commit *p2 = branches[b2];
 
+        string mergeCommitID = generateRandomId(10); 
+        string mergeMessage = "Merge " + b2 + " into " + b1;
 
-    // void checkout()
+        Commit* mergeCommit = new Commit(mergeCommitID, mergeMessage, {p1, p2});
+        commits[mergeCommitID] = mergeCommit;
+        branches[b1] = mergeCommit;
+
+        currentBranchHead = b1;
+        currentCommit = mergeCommitID;
+
+        if(b2 != "main"){
+            branches.erase(b2);
+        }
+    }
+
+    void getLogHistory(Commit *commit){
+
+        unordered_set<string> visited;
+        stack<Commit*> st;
+    
+        if (!commit) return;
+    
+        st.push(commit);
+    
+        while (!st.empty()) {
+            Commit* curr = st.top();
+            st.pop();
+    
+            if (visited.count(curr->commitID)) continue;
+            visited.insert(curr->commitID);
+    
+            cout << curr->commitID << ": " << curr->message << endl;
+    
+            for (Commit* parent : curr->parents) {
+                if (!visited.count(parent->commitID)) {
+                    st.push(parent);
+                }
+            }
+        }
+    }
+
 };
 
 #endif
