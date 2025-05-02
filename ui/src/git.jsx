@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import cytoscape from "cytoscape";
 import dagre from 'cytoscape-dagre'
+import klay from 'cytoscape-klay';
 import axios from 'axios'
 import './styles.css';
 
@@ -10,19 +11,34 @@ const GitRepository = () => {
   const [gitInstance, setGitInstance] = useState(null);
   const [newCommitResponse, setNewCommitResponse] = useState({});
   const [prevCommit, setPrevCommit] = useState('init');
-  
+  const [content, setContent] = useState('')
+  const [branchName, setBranchName] = useState('');
   const [branchName1, setBranchName1] = useState('');
   const [branchName2, setBranchName2] = useState('');
   const [mergeBranch, setMergeBranch] = useState('');
   const [commitMessage, setCommitMessage] = useState('');
-  const [showHistory, setShowHistory] = useState(false);
+  const [showHistory, setShowHistory] = useState(true);
+  const[commits, setCommits] = useState({before : '', after : '', insertions : 0, deletions : 0, edits : 0, message : ''});
+  const [currentHEAD, setCurrentHEAD] = useState('init');
+  const [log, setLog] = useState([])
   
   useEffect(() => {
-    cytoscape.use(dagre);
+    // cytoscape.use(dagre);
+    cytoscape.use(klay);
     const cy = cytoscape({
       container: gitref.current,
       elements: [
-        {data: {id: 'init', message: 'Initialized Git Repo'}},
+        {data: {id: 'init', 
+                commits : {
+                  before : '',
+                  after : '',
+                  insertions : 0,
+                  deletions : 0,
+                  edits : 0,
+                  message: 'Initialized Git Repo',
+                }
+          }},
+        
       ],
       style: [
         {
@@ -30,6 +46,9 @@ const GitRepository = () => {
           style: {
             "background-color": "#0074D9",
             label: "data(id)",
+            "height" : 5,
+            "width" : 5,
+            "font-size": 2,
           },
         },
         {
@@ -39,91 +58,206 @@ const GitRepository = () => {
             "target-arrow-color": "#ccc",
             "target-arrow-shape": "triangle",
             "curve-style": "bezier",
+            "width" : 1,
+            'arrow-scale': 0.5,
           },
         },
       ],
       layout: {
-        name: 'dagre',
-        directed: 'true',
-        padding: 10
+        name: 'klay',
+        nodeDimensionsIncludeLabels: true,
+        klay: {
+          direction: 'RIGHT', // or 'DOWN'
+          spacing: 150,
+          edgeSpacingFactor: 1.5,
+          inLayerSpacingFactor: 1.2,
+          layoutHierarchy: true,
+          nodePlacement: 'BRANDES_KOEPF'
+        }
       }
     })
 
     setGitInstance(cy);
 
     cy.on('tap', 'node', (event) => {
-      const nodeId = event.target.data('message'); 
-      alert(`Node clicked: ${nodeId}`); 
+      const nodeId = event.target.data('commits'); 
+      setCommits({
+        before : nodeId.before,
+        after : nodeId.after,
+        insertions : nodeId.insertions,
+        deletions : nodeId.deletions,
+        edits : nodeId.edits,
+        message : nodeId.message
+      })
+      setShowHistory(false)
     });
 
     return () => cy.destroy()
   }, [])
   
   const handleNewBranch = async () => {
-    // Implementation for creating a new branch
-    console.log(`Creating new branch: ${branchName1}`);
-    console.log(`Merging branch: ${branchName2}`);
-    // API call would go here
+    await axios.post('http://localhost:8080/checkout', {
+        "branchName" : branchName
+    }).then((res) => {
+        if(!res) return;
+        const elements = [];
+
+        elements.push({
+            data: {
+                id: res.data.commitId,
+                commits : {
+                  before : newCommitResponse.contentBefore,
+                  after : newCommitResponse.contentAfter,
+                  insertions : newCommitResponse.insertion,
+                  deletions : newCommitResponse.deletion,
+                  edits : newCommitResponse.edits,
+                  message: res.data.message,
+                }
+            }
+        });
+
+        if (res.data.parents) {
+            res.data.parents.forEach(parentId => {
+                elements.push({
+                    data: {
+                        source: parentId,
+                        target: res.data.commitId
+                    }
+                });
+            });
+        }
+
+        const currentPosition = gitInstance.$id(res.data.commitId).position();
+        const offset = 50;
+
+        gitInstance.add(elements);
+        // gitInstance.$id(res.data.commitId).position({
+        //   x : currentPosition.x - offset,
+        //   y : currentPosition.y
+        // })
+        gitInstance.$id(res.data.commitId).style({
+          "background-color": "orange"
+        });
+        
+        gitInstance.layout({ name: 'klay' }).run();
+    })
   };
   
-  const handlePrint = () => {
-    console.log('Printing repository visualization');
-    window.print();
+  const handlePrint = async() => {
+    await axios.get('http://localhost:8080/Printgit')
+    .then((res) => {
+      if(res) 
+          window.alert("Printed check folder");
+    })
   };
   
-  const handleGetHistory = () => {
-    console.log('Getting repository history');
-    setShowHistory(true);
+  const handleGetHistory = async() => {   
+      await axios.get("http://localhost:8080/log")
+      .then((res) => {
+          setLog(res.data.log)
+          setShowHistory(true)
+      })
   };
   
   const handleMerge = async () => {
-    // Implementation for merging branches
-    console.log(`Merging branch: ${mergeBranch}`);
-    // API call would go here
-  };
-  
+    await axios.post('http://localhost:8080/merge', {
+      "branchName1" : branchName1,
+      "branchName2" : branchName2
+    }).then((res) => {
+        if(!res) return;
+        const elements = [];
+
+        elements.push({
+            data: {
+                id: res.data.commitId,
+                commits : {
+                  before : newCommitResponse.contentBefore,
+                  after : newCommitResponse.contentAfter,
+                  insertions : newCommitResponse.insertion,
+                  deletions : newCommitResponse.deletion,
+                  edits : newCommitResponse.edits,
+                  message: res.data.message,
+                }
+            }
+        });
+
+        if (res.data.parents) {
+            res.data.parents.forEach(parentId => {
+                elements.push({
+                    data: {
+                        source: parentId,
+                        target: res.data.commitId
+                    }
+                });
+            });
+        }
+
+        const currentPosition = gitInstance.$id(res.data.commitId).position();
+        const offset = 50;
+
+        gitInstance.add(elements);
+        // gitInstance.$id(res.data.commitId).position({
+        //   x : currentPosition.x - offset,
+        //   y : currentPosition.y
+        // })
+        gitInstance.$id(res.data.commitId).style({
+          "background-color": "green"
+        });
+        
+        gitInstance.layout({ name: 'klay' }).run();
+    })
+    };
+    
   const handleNewCommit = async() => {
-    // await axios.post("http://localhost:8080/newcommit", {
-    //         "name" : commitName,
-    //         "message" : commitMessage
-    // })
-    // .then((res) => {
-    //     if(!res) return;
-    //     setPrevCommit(newCommitResponse.commitId || prevCommit)
-    //     setNewCommitResponse(res.data);
-    // })
+    await axios.post("http://localhost:8080/newcommit", {
+            "message" : commitMessage,
+            "content" : content
+    })
+    .then((res) => {
+        if(!res) return;
+        setPrevCommit(newCommitResponse.commitId || prevCommit)
+        setNewCommitResponse(res.data);
+    })
   }
   
   useEffect(() => {
-    // if (gitInstance && newCommitResponse.commitId) {
-    //     const elements = [];
+    if (gitInstance && newCommitResponse.commitId) {
+        const elements = [];
 
-    //     elements.push({
-    //         data: {
-    //             id: newCommitResponse.commitId,
-    //             label: newCommitResponse.content
-    //         }
-    //     });
+        elements.push({
+            data: {
+                id: newCommitResponse.commitId,
+                commits : {
+                  before : newCommitResponse.contentBefore,
+                  after : newCommitResponse.contentAfter,
+                  insertions : newCommitResponse.insertion,
+                  deletions : newCommitResponse.deletion,
+                  edits : newCommitResponse.edits,
+                  message: newCommitResponse.message,
+                }
+            }
+        });
 
-    //     if (newCommitResponse.parents) {
-    //         newCommitResponse.parents.forEach(parentId => {
-    //             elements.push({
-    //                 data: {
-    //                     source: parentId,
-    //                     target: newCommitResponse.commitId
-    //                 }
-    //             });
-    //         });
-    //     }
+        if (newCommitResponse.parents) {
+            newCommitResponse.parents.forEach(parentId => {
+                elements.push({
+                    data: {
+                        source: parentId,
+                        target: newCommitResponse.commitId
+                    }
+                });
+            });
+        }
 
-    //     gitInstance.add(elements);
-    //     gitInstance.layout({ name: 'dagre' }).run();
-    // }
+        gitInstance.add(elements);
+        gitInstance.layout({ name: 'klay' }).run();
+    }
   }, [newCommitResponse]);
+  
       
   return (
     <div className="git-container">
-      {/* Left sidebar - Controls */}
+   
       <div className="git-sidebar">
         <div className="git-title">GIT BRANCH VISUALIZATION</div>
         
@@ -132,8 +266,8 @@ const GitRepository = () => {
             type="text" 
             className="git-input"
             placeholder="Enter branch name" 
-            value={branchName1} 
-            onChange={(e) => setBranchName1(e.target.value)}
+            value={branchName} 
+            onChange={(e) => setBranchName(e.target.value)}
           />
           <button 
             className="git-button branch-button"
@@ -168,11 +302,18 @@ const GitRepository = () => {
         
         <div className="button-row">
           <div className="git-label">Commit</div>
-          <textarea 
-            className="git-textarea"
+          <input 
+            type="text" 
+            className="git-input"
             placeholder="Enter commit message" 
             value={commitMessage} 
             onChange={(e) => setCommitMessage(e.target.value)}
+          />
+          <textarea 
+            className="git-textarea"
+            placeholder="Enter commit message" 
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
           />
           <button 
             className="git-button commit-button"
@@ -208,32 +349,34 @@ const GitRepository = () => {
         {!showHistory ? (
           <>
             <div className="commit-details-title">COMMIT DETAILS</div>
-            
-            <div className="commit-details-subtitle">Before Merge</div>
+            <p>Message : {commits.message}</p>            
+            <div className="commit-details-subtitle">Before Commit</div>
             <div className="commit-details-content">
-              {/* Placeholder for before merge details */}
-              <p>No commit selected. Click on a commit node in the visualization to view details.</p>
+              {commits.before}
             </div>
             
-            <div className="commit-details-subtitle">After Merge</div>
+            <div className="commit-details-subtitle">After After commit</div>
             <div className="commit-details-content">
-              {/* Placeholder for after merge details */}
-              <p>No merge operation performed yet.</p>
+              {commits.after}
+            </div>
+
+            <div>
+              <p>Insertions : {commits.insertions}</p>
+              <p>Deletions : {commits.deletions}</p>
+              <p>Edits : {commits.edits}</p>
             </div>
           </>
         ) : (
           <>
             <div className="commit-details-title">LOG HISTORY</div>
             <div className="commit-details-content log-history">
-              {/* Placeholder for repository history */}
-            </div>
-            <div className="history-actions">
-              <button 
-                className="git-button back-button"
-                onClick={() => setShowHistory(false)}
-              >
-                Back to Commit Details
-              </button>
+                {log.map((item, index) => (
+                  <div key={index}>
+                    <p>{item.commitID}</p>
+                    <p>{item.message}</p>
+                    <hr />
+                  </div>
+                ))}
             </div>
           </>
         )}
