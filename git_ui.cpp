@@ -9,7 +9,7 @@ int main()
     GitRepo r;
     auto& cors = app.get_middleware<crow::CORSHandler>();
     cors.global()
-        .origin("*") // or "http://localhost:5173"
+        .origin("*")
         .headers("Content-Type");
 
 
