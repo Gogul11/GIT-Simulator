@@ -5,20 +5,25 @@
 int main()
 {
     crow::App<crow::CORSHandler> app; // ✅ Correct
-
-    GitRepo r;
+    
+    GitRepo *r;
     auto& cors = app.get_middleware<crow::CORSHandler>();
     cors.global()
         .origin("*")
         .headers("Content-Type");
 
-
+    CROW_ROUTE(app, "/init")
+    ([&](){
+        r = new GitRepo(); 
+        return crow::response(200, "Initialized repository");
+    });
+        
     
     CROW_ROUTE(app, "/newcommit")
         .methods(crow::HTTPMethod::POST)
             ([&](const crow::request& req){
                 auto data = crow::json::load(req.body);
-                Commit *res = r.newCommit(data["message"].s(), data["content"].s());
+                Commit *res = r->newCommit(data["message"].s(), data["content"].s());
                 
                 crow::json::wvalue x;
                 x["commitId"] = res->commitID;
@@ -41,7 +46,7 @@ int main()
  
     CROW_ROUTE(app, "/Printgit")([&](){
       
-        r.printGraphDOT();
+        r->printGraphDOT();
         return crow::response(200);
     });
 
@@ -53,7 +58,7 @@ int main()
 
             string bName = data["branchName"].s();
 
-            Commit*n = r.checkOut(bName);
+            Commit*n = r->checkOut(bName);
             
             crow::json::wvalue x;
             x["commitId"] = n->commitID;
@@ -78,22 +83,22 @@ int main()
         ([&](const crow::request& req){
             auto data = crow::json::load(req.body);
 
-            r.merge(data["branchName1"].s(), data["branchName2"].s());
+            r->merge(data["branchName1"].s(), data["branchName2"].s());
 
             crow::json::wvalue x;
-            x["commitId"] = r.head()->commitID;
+            x["commitId"] = r->head()->commitID;
             CROW_ROUTE(app, "/log")
             ([&](){
-                vector<Commit *> ans = r.getLogHistory();
+                vector<Commit *> ans = r->getLogHistory();
     
                 crow::json::wvalue x;
                 x["log"] = std::move(ans);
     
                 return x;
-            });   x["message"] = r.head()->message;
+            });   x["message"] = r->head()->message;
 
             vector<string> parentIds;
-            for (Commit* p : r.head()->parents) {
+            for (Commit* p : r->head()->parents) {
                 parentIds.push_back(p->commitID); 
             }
             
@@ -104,7 +109,7 @@ int main()
 
         CROW_ROUTE(app, "/log")
         ([&](){
-            std::vector<Commit *> ans = r.getLogHistory();
+            std::vector<Commit *> ans = r->getLogHistory();
         
             crow::json::wvalue x;
             x["log"] = crow::json::wvalue::list(); // Initialize as empty list

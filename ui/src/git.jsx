@@ -5,6 +5,8 @@ import klay from 'cytoscape-klay';
 import axios from 'axios'
 import './styles.css';
 
+// axios.defaults.withCredentials = true;
+
 const GitRepository = () => {
   const gitref = useRef(null);
   
@@ -144,11 +146,11 @@ const GitRepository = () => {
   };
   
   const handlePrint = async() => {
-    await axios.get('http://localhost:8080/Printgit')
-    .then((res) => {
-      if(res) 
-          window.alert("Printed check folder");
-    })
+    // await axios.get('http://localhost:8080/Printgit')
+    // .then((res) => {
+    //   if(res) 
+    //       window.alert("Printed check folder");
+    // })
   };
   
   const handleGetHistory = async() => {   
@@ -212,9 +214,15 @@ const GitRepository = () => {
     await axios.post("http://localhost:8080/newcommit", {
             "message" : commitMessage,
             "content" : content
+    },{
+      withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json',
+  },
     })
     .then((res) => {
         if(!res) return;
+        console.log(res.data)
         setPrevCommit(newCommitResponse.commitId || prevCommit)
         setNewCommitResponse(res.data);
     })
