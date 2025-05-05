@@ -1,29 +1,40 @@
 #include "crow.h"
 #include "git.h"
 #include "crow/middlewares/cors.h"
+#include <thread>
+#include <chrono>
+
+
+//Used for creating multiple instances of the Repo for each user
+unordered_map<string, GitRepo> repos;
 
 int main()
 {
-    crow::App<crow::CORSHandler> app; // ✅ Correct
+    //Initializing crow app
+    crow::App<crow::CORSHandler> app; 
     
-    GitRepo *r;
+    //CORS - handling
     auto& cors = app.get_middleware<crow::CORSHandler>();
     cors.global()
-        .origin("*")
-        .headers("Content-Type");
-
-    CROW_ROUTE(app, "/init")
-    ([&](){
-        r = new GitRepo(); 
-        return crow::response(200, "Initialized repository");
-    });
-        
-    
+        .origin("http://localhost:5173") 
+        .methods(crow::HTTPMethod::GET, crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)
+        .headers("Content-Type", "Authorization", "X-Session-ID") 
+        .allow_credentials();
+            
+    //Route for handling newcommit
     CROW_ROUTE(app, "/newcommit")
         .methods(crow::HTTPMethod::POST)
             ([&](const crow::request& req){
+                
+                //Gets the session Id
+                std::string sessionId = req.get_header_value("X-Session-ID");
+                if(repos.find(sessionId) == repos.end()){
+                    repos[sessionId] = GitRepo();
+                }
+
+                auto &r = repos[sessionId];
                 auto data = crow::json::load(req.body);
-                Commit *res = r->newCommit(data["message"].s(), data["content"].s());
+                Commit *res = r.newCommit(data["message"].s(), data["content"].s());
                 
                 crow::json::wvalue x;
                 x["commitId"] = res->commitID;
@@ -44,21 +55,30 @@ int main()
                 return x;
             });
  
-    CROW_ROUTE(app, "/Printgit")([&](){
+    //Route for printing git graph
+    // CROW_ROUTE(app, "/Printgit")([&](){
       
-        r->printGraphDOT();
-        return crow::response(200);
-    });
+    //     // r.printGraphDOT();
+    //     for(auto r : repos){
+    //         cout<<r.first<<endl;
+    //     }
+    //     return crow::response(200);
+    // });
 
-
+    //Route for handling checkout
     CROW_ROUTE(app, "/checkout")
         .methods(crow::HTTPMethod::POST)
         ([&](const crow::request& req){
+            std::string sessionId = req.get_header_value("X-Session-ID");
+            if(repos.find(sessionId) == repos.end()){
+                repos[sessionId] = GitRepo();
+            }
+            auto &r = repos[sessionId];
             auto data = crow::json::load(req.body);
 
             string bName = data["branchName"].s();
 
-            Commit*n = r->checkOut(bName);
+            Commit*n = r.checkOut(bName);
             
             crow::json::wvalue x;
             x["commitId"] = n->commitID;
@@ -77,28 +97,28 @@ int main()
             return x;
             
         });
-
+    
+    //Route for handling merge
     CROW_ROUTE(app, "/merge")
         .methods(crow::HTTPMethod::POST)
         ([&](const crow::request& req){
+            std::string sessionId = req.get_header_value("X-Session-ID");
+            if(repos.find(sessionId) == repos.end()){
+                repos[sessionId] = GitRepo();
+            }
+
+
+            auto &r = repos[sessionId];
             auto data = crow::json::load(req.body);
 
-            r->merge(data["branchName1"].s(), data["branchName2"].s());
+            r.merge(data["branchName1"].s(), data["branchName2"].s());
 
             crow::json::wvalue x;
-            x["commitId"] = r->head()->commitID;
-            CROW_ROUTE(app, "/log")
-            ([&](){
-                vector<Commit *> ans = r->getLogHistory();
-    
-                crow::json::wvalue x;
-                x["log"] = std::move(ans);
-    
-                return x;
-            });   x["message"] = r->head()->message;
+            x["commitId"] = r.head()->commitID;
+            x["message"] = r.head()->message;
 
             vector<string> parentIds;
-            for (Commit* p : r->head()->parents) {
+            for (Commit* p : r.head()->parents) {
                 parentIds.push_back(p->commitID); 
             }
             
@@ -107,24 +127,48 @@ int main()
             return x;          
         });
 
+        //Route for handling git history
         CROW_ROUTE(app, "/log")
-        ([&](){
-            std::vector<Commit *> ans = r->getLogHistory();
+        ([&](const crow::request& req){
+            std::string sessionId = req.get_header_value("X-Session-ID");
+            if(repos.find(sessionId) == repos.end()){
+                repos[sessionId] = GitRepo();
+            }
+
+            auto &r = repos[sessionId];
+            std::vector<Commit *> ans = r.getLogHistory();
         
             crow::json::wvalue x;
-            x["log"] = crow::json::wvalue::list(); // Initialize as empty list
+            x["log"] = crow::json::wvalue::list(); 
         
             size_t index = 0;
             for (Commit* c : ans) {
                 crow::json::wvalue entry;
                 entry["commitID"] = c->commitID;
                 entry["message"] = c->message;
-                x["log"][index] = std::move(entry); // Assign by index
+                x["log"][index] = std::move(entry); 
                 index++;
             }
         
             return x;
         });
+        
+        //Route for clearing the Session
+        CROW_ROUTE(app, "/clear")
+            .methods(crow::HTTPMethod::POST)
+            ([&](const crow::request& req){
+            std::string sessionId = req.get_header_value("X-Session-ID");
+        
+            if (sessionId.empty()) {
+                return crow::response(200, "Missing session ID");
+            }
+        
+            repos.erase(sessionId);
+            std::cout << "Cleared session: " << sessionId << std::endl;
+        
+            return crow::response(200, "Session cleared");
+        });
+        
 
     app.port(8080).multithreaded().run();
 }
