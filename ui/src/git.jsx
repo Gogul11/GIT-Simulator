@@ -36,7 +36,7 @@ const GitRepository = () => {
       if (!sessionId) return;
     
       const handleBeforeUnload = () => {
-        fetch("http://localhost:8080/clear", {
+        fetch("https://git-simulator-backend.onrender.com/clear", {
           method: "POST",
           headers: {
             "X-Session-ID": sessionId
@@ -126,7 +126,7 @@ const GitRepository = () => {
     
     const handleNewBranch = async () => {
 
-      await axios.post('http://localhost:8080/checkout', {
+      await axios.post('https://git-simulator-backend.onrender.com/checkout', {
           "branchName" : branchName
       }, {
         headers : {
@@ -179,7 +179,7 @@ const GitRepository = () => {
     };
     
     const handleGetHistory = async() => {  
-        await axios.get("http://localhost:8080/log", {
+        await axios.get("https://git-simulator-backend.onrender.com/log", {
           headers : {
             "X-Session-ID" : sessionId
           }
@@ -191,7 +191,7 @@ const GitRepository = () => {
     };
     
     const handleMerge = async () => {
-      await axios.post('http://localhost:8080/merge', {
+      await axios.post('https://git-simulator-backend.onrender.com/merge', {
         "branchName1" : branchName1,
         "branchName2" : branchName2
       }, {
@@ -237,7 +237,7 @@ const GitRepository = () => {
       };
       
     const handleNewCommit = async() => {
-      await axios.post("http://localhost:8080/newcommit", {
+      await axios.post("https://git-simulator-backend.onrender.com/newcommit", {
               "message" : commitMessage,
               "content" : content
       }, {
