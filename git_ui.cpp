@@ -16,7 +16,7 @@ int main()
     //CORS - handling
     auto& cors = app.get_middleware<crow::CORSHandler>();
     cors.global()
-        .origin("https://git-simulator-eight.vercel.app/") 
+        .origin("https://git-simulator-eight.vercel.app") 
         .methods(crow::HTTPMethod::GET, crow::HTTPMethod::POST, crow::HTTPMethod::OPTIONS)
         .headers("Content-Type", "Authorization", "X-Session-ID") 
         .allow_credentials();
