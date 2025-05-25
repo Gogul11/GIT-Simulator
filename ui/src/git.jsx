@@ -4,7 +4,7 @@ import dagre from 'cytoscape-dagre'
 import klay from 'cytoscape-klay';
 import axios from 'axios'
 import './styles.css';
-
+import frontendUrl from './url';
 
 const GitRepository = () => {
     const gitref = useRef(null);
@@ -36,7 +36,7 @@ const GitRepository = () => {
       if (!sessionId) return;
     
       const handleBeforeUnload = () => {
-        fetch("https://git-simulator-backend.onrender.com/clear", {
+        fetch(`${frontendUrl}/clear`, {
           method: "POST",
           headers: {
             "X-Session-ID": sessionId
@@ -126,7 +126,7 @@ const GitRepository = () => {
     
     const handleNewBranch = async () => {
 
-      await axios.post('https://git-simulator-backend.onrender.com/checkout', {
+      await axios.post(`${frontendUrl}/checkout`, {
           "branchName" : branchName
       }, {
         headers : {
@@ -179,7 +179,7 @@ const GitRepository = () => {
     };
     
     const handleGetHistory = async() => {  
-        await axios.get("https://git-simulator-backend.onrender.com/log", {
+        await axios.get(`${frontendUrl}/log`, {
           headers : {
             "X-Session-ID" : sessionId
           }
@@ -191,7 +191,7 @@ const GitRepository = () => {
     };
     
     const handleMerge = async () => {
-      await axios.post('https://git-simulator-backend.onrender.com/merge', {
+      await axios.post(`${frontendUrl}/merge`, {
         "branchName1" : branchName1,
         "branchName2" : branchName2
       }, {
@@ -237,7 +237,7 @@ const GitRepository = () => {
       };
       
     const handleNewCommit = async() => {
-      await axios.post("https://git-simulator-backend.onrender.com/newcommit", {
+      await axios.post(`${frontendUrl}/newcommit`, {
               "message" : commitMessage,
               "content" : content
       }, {
